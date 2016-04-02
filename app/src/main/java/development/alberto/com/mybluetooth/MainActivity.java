@@ -9,11 +9,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -25,15 +29,21 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 public class MainActivity extends Activity  {
+
     Button b1,b2,b3,b4;
     private BluetoothAdapter BA;
     private Set<BluetoothDevice>pairedDevices;
     ListView lv;
+    private static final int REQUEST_BLUETOOTH = 0;
+    private static final int DISCOVER_DURATION = 300;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +62,7 @@ public class MainActivity extends Activity  {
     public void on(View v){
         if (!BA.isEnabled()) {
             Intent turnOn = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(turnOn, 0);
+            startActivityForResult(turnOn, REQUEST_BLUETOOTH);
             Toast.makeText(getApplicationContext(),"Turned on",Toast.LENGTH_LONG).show();
         }
         else
@@ -68,7 +78,8 @@ public class MainActivity extends Activity  {
 
     public  void visible(View v){
         Intent getVisible = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-        startActivityForResult(getVisible, 0);
+        getVisible.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, DISCOVER_DURATION);
+        startActivityForResult(getVisible, REQUEST_BLUETOOTH);
     }
 
     public void list(View v){
@@ -83,4 +94,52 @@ public class MainActivity extends Activity  {
         lv.setAdapter(adapter);
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == DISCOVER_DURATION && requestCode == REQUEST_BLUETOOTH) {
+            Intent i = new Intent ();
+            i.setAction(Intent.ACTION_SEND);
+            i.setType("text/plain");
+//            String uri = "/mnt/sdcard/test.txt";
+//            File f = new File(uri);
+            String base = Environment.getExternalStorageDirectory().getAbsolutePath();
+            File f = new File(base, "pc.txt");
+            FileWriter escribir= null;
+            try {
+                escribir = new FileWriter(f,true);
+                escribir.write("saludo");
+                escribir.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            i.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f));
+            PackageManager pm = getPackageManager();
+            List<ResolveInfo> list = pm.queryIntentActivities(i, 0);
+            if(list.size() >0){
+                String packageName = null;
+                String className = null;
+                boolean found = false;
+
+                for (ResolveInfo info :list){
+                    packageName = info.activityInfo.packageName;
+                    if(packageName.equals("com.android.bluetooth")){
+                        className = info.activityInfo.name;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    Toast.makeText(getApplicationContext()," Bluethooth havent been found " ,Toast.LENGTH_LONG).show();
+                } else {
+                    i.setClassName(packageName, className);
+                    startActivity(i);
+                }
+            } else {
+                Toast.makeText(getApplicationContext()," Bluethooth is cancelled " ,Toast.LENGTH_LONG).show();
+            }
+
+        }
+    }
 }
